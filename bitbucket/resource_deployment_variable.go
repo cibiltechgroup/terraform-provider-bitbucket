@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/hashicorp/terraform/helper/schema"
 	"io/ioutil"
-	"log"
-	"net/url"
+	// "log"
+	// "net/url"
 	"strings"
 	"time"
 )
@@ -114,48 +114,60 @@ func resourceDeploymentVariableCreate(d *schema.ResourceData, m interface{}) err
 
 func resourceDeploymentVariableRead(d *schema.ResourceData, m interface{}) error {
 
-	repository, deployment := parseDeploymentId(d.Get("deployment").(string))
 	client := m.(*Client)
-	rvReq, _ := client.Get(fmt.Sprintf("2.0/repositories/%s/deployments_config/environments/%s/variables",
+
+	repository, deployment := parseDeploymentId(d.Get("deployment").(string))
+
+	resourceURL := fmt.Sprintf("2.0/repositories/%s/deployments_config/environments/%s/variables",
 		repository,
 		deployment,
-	))
+	)
 
-	log.Printf("ID: %s", url.PathEscape(d.Id()))
+	var variables PaginatedDeploymentVariables
+	var uuid = d.Get("uuid").(string)
+	isDone := false
 
-	if rvReq.StatusCode == 200 {
-		var prv PaginatedDeploymentVariables
-		body, readerr := ioutil.ReadAll(rvReq.Body)
-		if readerr != nil {
-			return readerr
+	for {
+
+		variablesResponse, err := client.Get(resourceURL)
+		if err != nil {
+			return err
 		}
 
-		decodeerr := json.Unmarshal(body, &prv)
-		if decodeerr != nil {
-			return decodeerr
+		decoder := json.NewDecoder(variablesResponse.Body)
+		err = decoder.Decode(&variables)
+		if err != nil {
+			return err
 		}
 
-		if prv.Size < 1 {
-			d.SetId("")
-			return nil
-		}
-
-		var uuid = d.Get("uuid").(string)
-		for _, rv := range prv.Values {
-			if rv.UUID == uuid {
-				d.SetId(rv.UUID)
-				d.Set("key", rv.Key)
-				d.Set("value", rv.Value)
-				d.Set("secured", rv.Secured)
-				return nil
+		for _, variable := range variables.Values {
+			if variable.UUID == uuid {
+				d.SetId(variable.UUID)
+				d.Set("key", variable.Key)
+				d.Set("value", variable.Value)
+				d.Set("secured", variable.Secured)
+				isDone = true
+			}
+			if isDone {
+				break
 			}
 		}
-		d.SetId("")
-	}
 
-	if rvReq.StatusCode == 404 {
-		d.SetId("")
-		return nil
+		if isDone {
+			break
+		}
+
+		if variables.Next != "" {
+			nextPage := variables.Page + 1
+			resourceURL = fmt.Sprintf("2.0/repositories/%s/deployments_config/environments/%s/variables?page=%d",
+				repository,
+				deployment,
+				nextPage,
+			)
+			variables = PaginatedDeploymentVariables{}
+		} else {
+			break
+		}
 	}
 
 	return nil
