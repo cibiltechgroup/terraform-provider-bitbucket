@@ -29,13 +29,14 @@ func Provider() terraform.ResourceProvider {
 			"bitbucket_default_reviewers":   resourceDefaultReviewers(),
 			"bitbucket_repository":          resourceRepository(),
 			"bitbucket_repository_variable": resourceRepositoryVariable(),
-			"bitbucket_project":             resourceProject(),
-			"bitbucket_branch_restriction":  resourceBranchRestriction(),
 			"bitbucket_deployment":          resourceDeployment(),
 			"bitbucket_deployment_variable": resourceDeploymentVariable(),
+			"bitbucket_project":             resourceProject(),
+			"bitbucket_branch_restriction":  resourceBranchRestriction(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
-			"bitbucket_user": dataUser(),
+			"bitbucket_user":       dataUser(),
+			"bitbucket_repository": dataRepository(),
 		},
 	}
 }
